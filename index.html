@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+<title>Streamflix</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+/* Layout: dark cinema shell. Sticky nav, billboard hero, horizontally scrolling poster rows, modal + player. */
+:root {
+  color-scheme: dark;
+  --bg: #0d0b12;
+  --surface: #17141f;
+  --surface-2: #211d2c;
+  --fg: #f4f1f8;
+  --muted: #a39db3;
+  --line: #2c273a;
+  --accent: #e8336d;
+  --accent-ink: #ffffff;
+  --good: #46d369;
+  --font-display: "Bricolage Grotesque", "Arial Black", system-ui, sans-serif;
+  --font-body: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --gutter-l: max(16px, env(safe-area-inset-left, 0px));
+  --gutter-r: max(16px, env(safe-area-inset-right, 0px));
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+}
+body::before {
+  content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px);
+  z-index: 60; background: var(--bg);
+}
+button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+
+/* Nav */
+.nav {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 50;
+  display: flex; align-items: center; gap: 24px; flex-wrap: wrap;
+  padding: 12px var(--gutter-r) 12px var(--gutter-l);
+  background: linear-gradient(to bottom, rgba(13,11,18,.96), rgba(13,11,18,.7));
+  backdrop-filter: blur(8px);
+}
+.logo { font-family: var(--font-display); font-weight: 800; font-size: 24px; letter-spacing: -.02em; color: var(--accent); }
+.logo span { color: var(--fg); }
+.tabs { display: flex; gap: 4px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { padding: 6px 12px; border-radius: 6px; color: var(--muted); white-space: nowrap; font-weight: 500; }
+.tab:hover { color: var(--fg); }
+.tab[aria-current="true"] { color: var(--fg); font-weight: 700; background: var(--surface-2); }
+.tools { display: flex; align-items: center; gap: 12px; }
+.search { display: flex; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; gap: 6px; }
+.search input { background: none; border: 0; color: var(--fg); font: inherit; padding: 8px 0; width: 150px; min-width: 0; }
+.search input::placeholder { color: var(--muted); }
+.avatar { width: 32px; height: 32px; border-radius: 6px; background: linear-gradient(135deg, #f6a23c, #e8336d); display: grid; place-items: center; font-weight: 700; color: #1a0d14; }
+
+/* Hero */
+.hero { position: relative; margin-top: -58px; min-height: clamp(420px, 62vw, 640px); display: flex; align-items: flex-end; overflow: hidden; }
+.hero-art { position: absolute; inset: 0; transition: background .6s; }
+.hero-art::after { content: ""; position: absolute; inset: 0;
+  background: linear-gradient(to top, var(--bg) 4%, transparent 55%), linear-gradient(to right, rgba(13,11,18,.85), transparent 65%); }
+.hero-body { position: relative; padding: 120px var(--gutter-r) 48px var(--gutter-l); max-width: 640px; display: grid; gap: 12px; }
+.badge { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.badge b { color: var(--accent); }
+.hero h1 { font-family: var(--font-display); font-weight: 800; font-size: clamp(38px, 7vw, 76px); line-height: .98; letter-spacing: -.03em; margin: 0; text-wrap: balance; }
+.hero p { margin: 0; color: #dcd6e8; max-width: 52ch; }
+.meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; color: var(--muted); font-size: 14px; }
+.match { color: var(--good); font-weight: 700; }
+.pill { border: 1px solid var(--muted); padding: 0 6px; border-radius: 3px; font-size: 12px; }
+.btns { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 22px; border-radius: 6px; font-weight: 700; }
+.btn.primary { background: var(--fg); color: #15111c; }
+.btn.primary:hover { background: #fff; }
+.btn.ghost { background: rgba(120,110,140,.45); }
+.btn.ghost:hover { background: rgba(120,110,140,.65); }
+.dots { position: absolute; right: var(--gutter-r); bottom: 20px; display: flex; gap: 6px; }
+.dots button { width: 22px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.3); }
+.dots button[aria-current="true"] { background: var(--accent); }
+
+/* Rows */
+main { display: grid; gap: 28px; padding-bottom: 60px; }
+.row h2 { font-family: var(--font-display); font-size: 19px; font-weight: 700; margin: 0 0 10px; padding: 0 var(--gutter-r) 0 var(--gutter-l); }
+.row-wrap { position: relative; }
+.scroller { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x proximity; padding: 8px var(--gutter-r) 24px var(--gutter-l); scroll-padding-left: var(--gutter-l); scrollbar-width: none; }
+.scroller::-webkit-scrollbar { display: none; }
+.arrow { position: absolute; top: 8px; bottom: 24px; width: 44px; z-index: 5; background: rgba(13,11,18,.7); font-size: 26px; opacity: 0; transition: opacity .2s; }
+.row-wrap:hover .arrow { opacity: 1; }
+.arrow.l { left: 0; } .arrow.r { right: 0; }
+@media (hover: none) { .arrow { display: none; } }
+
+.card { position: relative; flex: 0 0 clamp(190px, 22vw, 280px); aspect-ratio: 16/9; border-radius: 6px; overflow: hidden; scroll-snap-align: start; text-align: left; transition: transform .25s, box-shadow .25s; background: var(--surface); }
+.card:hover, .card:focus-visible { transform: scale(1.06); z-index: 4; box-shadow: 0 12px 30px rgba(0,0,0,.6); }
+.poster { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: 12px; }
+.poster::before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 80% 15%, rgba(255,255,255,.22), transparent 45%); }
+.poster::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.65), transparent 60%); }
+.poster strong { position: relative; z-index: 1; font-family: var(--font-display); font-size: 19px; line-height: 1.05; letter-spacing: -.02em; text-wrap: balance; }
+.poster small { position: relative; z-index: 1; font-size: 11px; opacity: .85; margin-top: 3px; }
+.listmark { position: absolute; top: 8px; right: 8px; z-index: 2; background: rgba(0,0,0,.6); border-radius: 50%; width: 22px; height: 22px; display: grid; place-items: center; font-size: 12px; }
+
+.empty { padding: 60px var(--gutter-r) 60px var(--gutter-l); color: var(--muted); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; padding: 0 var(--gutter-r) 0 var(--gutter-l); }
+.grid .card { flex: none; width: 100%; }
+.grid-title { font-family: var(--font-display); font-size: 22px; margin: 0; padding: 16px var(--gutter-r) 0 var(--gutter-l); }
+
+/* Modal */
+.overlay { position: fixed; inset: 0; z-index: 80; background: rgba(0,0,0,.75); display: grid; place-items: start center; overflow-y: auto; padding: max(24px, env(safe-area-inset-top, 0px)) var(--gutter-r) 24px var(--gutter-l); }
+.modal { width: min(820px, 100%); background: var(--surface); border-radius: 10px; overflow: hidden; position: relative; }
+.m-art { aspect-ratio: 16/8; position: relative; display: flex; align-items: flex-end; padding: 20px; }
+.m-art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, var(--surface), transparent 70%); }
+.m-art > * { position: relative; z-index: 1; }
+.m-art h3 { font-family: var(--font-display); font-size: clamp(28px, 5vw, 44px); margin: 0; letter-spacing: -.03em; line-height: 1; }
+.close { position: absolute; top: 12px; right: 12px; z-index: 3; width: 34px; height: 34px; border-radius: 50%; background: rgba(0,0,0,.65); font-size: 18px; }
+.m-body { padding: 8px 24px 28px; display: grid; gap: 14px; grid-template-columns: 2fr 1fr; }
+.m-body > * { min-width: 0; }
+.m-actions { grid-column: 1 / -1; display: flex; gap: 10px; flex-wrap: wrap; }
+.side { color: var(--muted); font-size: 14px; display: grid; gap: 8px; align-content: start; }
+.side b { color: var(--fg); font-weight: 500; }
+.more h4 { margin: 8px 0; font-family: var(--font-display); }
+@media (max-width: 640px) { .m-body { grid-template-columns: 1fr; } }
+
+/* Player */
+.player { position: fixed; inset: 0; z-index: 100; background: #000; display: grid; grid-template-rows: 1fr auto; }
+.screen { position: relative; overflow: hidden; display: grid; place-items: center; }
+.screen .art { position: absolute; inset: -20%; filter: blur(30px) saturate(1.3); animation: drift 14s ease-in-out infinite alternate; }
+@keyframes drift { to { transform: translate(6%, -4%) scale(1.15) rotate(6deg); } }
+.screen .title { position: relative; font-family: var(--font-display); font-weight: 800; font-size: clamp(30px, 8vw, 80px); letter-spacing: -.03em; text-align: center; padding: 0 var(--gutter-r) 0 var(--gutter-l); text-shadow: 0 4px 30px rgba(0,0,0,.6); }
+.player .top { position: absolute; top: max(14px, env(safe-area-inset-top, 0px)); left: var(--gutter-l); z-index: 2; }
+.controls { padding: 14px var(--gutter-r) max(16px, env(safe-area-inset-bottom, 0px)) var(--gutter-l); display: grid; gap: 10px; background: linear-gradient(to top, #000, rgba(0,0,0,.6)); }
+.bar { height: 6px; border-radius: 3px; background: #4a4458; cursor: pointer; position: relative; }
+.bar i { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 3px; width: 0; }
+.ctl { display: flex; gap: 18px; align-items: center; font-variant-numeric: tabular-nums; }
+.ctl button { font-size: 20px; }
+.ctl .grow { flex: 1; }
+
+.toast { position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: #15111c; padding: 10px 18px; border-radius: 8px; font-weight: 700; z-index: 120; }
+footer { color: var(--muted); font-size: 12px; text-align: center; padding: 0 var(--gutter-r) 40px var(--gutter-l); }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+</head>
+<body>
+<header class="nav">
+  <div class="logo">STREAM<span>FLIX</span></div>
+  <nav class="tabs" id="tabs" aria-label="Browse"></nav>
+  <div class="tools">
+    <label class="search"><span aria-hidden="true">⌕</span><input id="q" type="search" placeholder="Titles, genres" aria-label="Search titles"></label>
+    <div class="avatar" title="Profile">A</div>
+  </div>
+</header>
+
+<section class="hero" id="hero" aria-live="polite">
+  <div class="hero-art" id="heroArt"></div>
+  <div class="hero-body">
+    <div class="badge" id="heroBadge"></div>
+    <h1 id="heroTitle"></h1>
+    <div class="meta" id="heroMeta"></div>
+    <p id="heroDesc"></p>
+    <div class="btns">
+      <button class="btn primary" id="heroPlay">▶ Play</button>
+      <button class="btn ghost" id="heroInfo">ⓘ More info</button>
+      <button class="btn ghost" id="heroList"></button>
+    </div>
+  </div>
+  <div class="dots" id="dots"></div>
+</section>
+
+<main id="main"></main>
+<footer>Streamflix is a demo interface with invented titles. No real video is streamed.</footer>
+
+<script>
+var TITLES = [
+  {id:1,t:"Saltwater Hours",k:"series",g:["Drama"],y:2026,r:"16+",len:"3 seasons",m:97,c:["#0f4c75","#3282b8"],d:"A night-shift ferry crew on a remote strait learns that every passenger is carrying a secret worth crossing the water for."},
+  {id:2,t:"The Lantern Keepers",k:"series",g:["Sci-Fi & Fantasy"],y:2026,r:"13+",len:"2 seasons",m:94,c:["#6a1b9a","#ffb300"],d:"In a city that never sees daylight, a guild of lamplighters discovers the lights are keeping something asleep."},
+  {id:3,t:"Midnight Ledger",k:"film",g:["Crime & Thrillers"],y:2026,r:"16+",len:"1h 48m",m:91,c:["#1b1b2f","#c0392b"],d:"An auditor finds a 40-year-old accounting error that points to the biggest heist nobody ever reported."},
+  {id:4,t:"Orbit Nine",k:"series",g:["Sci-Fi & Fantasy"],y:2025,r:"13+",len:"1 season",m:89,c:["#0b132b","#5bc0be"],d:"Nine strangers on a failing station have eleven days of air and one shared lie."},
+  {id:5,t:"Paper Kingdoms",k:"film",g:["Family","Sci-Fi & Fantasy"],y:2026,r:"7+",len:"1h 36m",m:92,c:["#f2994a","#eb5757"],d:"Two siblings fold a map that unfolds into a world, then have to fold their way home."},
+  {id:6,t:"Quiet Machines",k:"film",g:["Documentary"],y:2025,r:"All",len:"1h 52m",m:88,c:["#2c3e50","#bdc3c7"],d:"Inside the last repair shops keeping decades-old industrial machines running."},
+  {id:7,t:"Velvet Static",k:"series",g:["Comedy"],y:2026,r:"16+",len:"2 seasons",m:90,c:["#833ab4","#fd1d1d"],d:"A failing late-night radio station becomes an accidental cult hit run by its three worst employees."},
+  {id:8,t:"The Long Thaw",k:"series",g:["Crime & Thrillers","Drama"],y:2025,r:"16+",len:"1 season",m:93,c:["#1d3557","#a8dadc"],d:"When the ice recedes at a mountain pass, so do the lies a village has told for thirty years."},
+  {id:9,t:"Harbor Lights",k:"film",g:["Drama"],y:2024,r:"13+",len:"2h 04m",m:86,c:["#ee9ca7","#6a82fb"],d:"A retired pilot and a teenage deckhand race a storm to bring an old lighthouse back to life."},
+  {id:10,t:"Ash & Ember",k:"series",g:["Sci-Fi & Fantasy","Drama"],y:2026,r:"16+",len:"4 seasons",m:95,c:["#370617","#f48c06"],d:"Two rival families inherit a volcano and the dragon-sized debts that come with it."},
+  {id:11,t:"Glass Orchard",k:"film",g:["Crime & Thrillers"],y:2025,r:"16+",len:"1h 57m",m:84,c:["#134e5e","#71b280"],d:"A botanist is the only witness to a crime committed in a greenhouse that was locked from the inside."},
+  {id:12,t:"Neon Parish",k:"series",g:["Comedy","Drama"],y:2026,r:"13+",len:"3 seasons",m:87,c:["#ff0099","#493240"],d:"A tiny-town priest opens a karaoke bar in the church basement to save the roof fund."},
+  {id:13,t:"Tidebound",k:"film",g:["Documentary"],y:2026,r:"All",len:"1h 29m",m:90,c:["#005c97","#363795"],d:"Twelve months on a sinking island chain, told by the people who refuse to leave."},
+  {id:14,t:"Copper Sky",k:"film",g:["Action"],y:2026,r:"13+",len:"2h 11m",m:85,c:["#b24592","#f15f79"],d:"A courier has until sunrise to carry a sealed box across a city that wants it opened."},
+  {id:15,t:"The Last Cartographer",k:"series",g:["Sci-Fi & Fantasy"],y:2025,r:"13+",len:"2 seasons",m:92,c:["#283048","#859398"],d:"The final mapmaker on a shifting continent draws what comes next instead of what is."},
+  {id:16,t:"Wild Signal",k:"series",g:["Documentary"],y:2026,r:"All",len:"6 episodes",m:91,c:["#136a8a","#267871"],d:"Radio collars, trail cameras and a decade of patience reveal how animals really talk."},
+  {id:17,t:"Pocket Universe",k:"film",g:["Family","Comedy"],y:2025,r:"7+",len:"1h 33m",m:83,c:["#4568dc","#b06ab3"],d:"A ten-year-old finds a galaxy in her coat pocket and a very small alien who needs a ride home."},
+  {id:18,t:"Dust Road Diaries",k:"series",g:["Documentary"],y:2024,r:"All",len:"2 seasons",m:86,c:["#c79081","#dfa579"],d:"Four friends, one van and 20,000 kilometres of roads that never made it onto a map."},
+  {id:19,t:"Echo Chamber 7",k:"film",g:["Crime & Thrillers","Sci-Fi & Fantasy"],y:2026,r:"16+",len:"1h 44m",m:89,c:["#0f2027","#2c5364"],d:"A sound engineer keeps hearing the same whisper hidden in every recording from one building."},
+  {id:20,t:"Moth to Flame",k:"film",g:["Drama"],y:2025,r:"16+",len:"2h 02m",m:82,c:["#42275a","#734b6d"],d:"A stage actor's final season unravels on the opening night of the show she swore she would never do."},
+  {id:21,t:"Kitchen Wars Global",k:"series",g:["Comedy","Documentary"],y:2026,r:"All",len:"5 seasons",m:85,c:["#f7971e","#ffd200"],d:"Home cooks from 30 countries fight for a single wooden spoon."},
+  {id:22,t:"Summit Fever",k:"film",g:["Action","Documentary"],y:2026,r:"13+",len:"1h 41m",m:88,c:["#304352","#d7d2cc"],d:"A two-person team attempts a winter ascent that has defeated every expedition before them."},
+  {id:23,t:"Cold Case Café",k:"series",g:["Comedy","Crime & Thrillers"],y:2025,r:"13+",len:"3 seasons",m:91,c:["#8e2de2","#4a00e0"],d:"Retired detectives solve the town's oldest mysteries between coffee refills."},
+  {id:24,t:"Blue Hour",k:"film",g:["Drama","Family"],y:2024,r:"7+",len:"1h 38m",m:84,c:["#2193b0","#6dd5ed"],d:"One evening, one rooftop and three generations trying to say the thing they never said."}
+];
+var byId = {}; TITLES.forEach(function(t){ byId[t.id]=t; });
+var FEATURED = [2,10,1,3];
+var state = { tab: "home", query: "", hero: 0, list: [] };
+try { state.list = JSON.parse(localStorage.getItem("streamflix-list") || "[]"); } catch(e) { state.list = []; }
+function saveList(){ try { localStorage.setItem("streamflix-list", JSON.stringify(state.list)); } catch(e) {} }
+function inList(id){ return state.list.indexOf(id) > -1; }
+function grad(t){ return "linear-gradient(135deg," + t.c[0] + "," + t.c[1] + ")"; }
+function el(tag, cls, html){ var n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; }
+function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+function toast(msg){ var t = el("div","toast",esc(msg)); t.setAttribute("role","status"); document.body.appendChild(t); setTimeout(function(){ t.remove(); }, 1800); }
+function toggleList(id){
+  var i = state.list.indexOf(id);
+  if (i > -1) { state.list.splice(i,1); toast("Removed from My List"); } else { state.list.push(id); toast("Added to My List"); }
+  saveList(); renderMain(); renderHero();
+}
+
+/* Tabs */
+var TABS = [["home","Home"],["series","Series"],["film","Films"],["list","My List"]];
+function renderTabs(){
+  var box = document.getElementById("tabs"); box.innerHTML = "";
+  TABS.forEach(function(p){
+    var b = el("button","tab",p[1]); b.setAttribute("aria-current", String(state.tab===p[0] && !state.query));
+    b.onclick = function(){ state.tab = p[0]; state.query = ""; document.getElementById("q").value = ""; renderTabs(); renderMain(); renderHero(); };
+    box.appendChild(b);
+  });
+}
+
+/* Hero */
+var heroTimer;
+function renderHero(){
+  var hero = document.getElementById("hero");
+  var showHero = state.tab !== "list" && !state.query;
+  hero.hidden = !showHero;
+  document.querySelector(".nav").style.background = showHero ? "" : "var(--bg)";
+  hero.style.marginTop = showHero ? "" : "0";
+  if (!showHero) return;
+  var pool = FEATURED.map(function(id){ return byId[id]; }).filter(function(t){ return state.tab==="home" || t.k===state.tab; });
+  if (!pool.length) pool = TITLES.filter(function(t){ return t.k===state.tab; }).slice(0,3);
+  state.hero = state.hero % pool.length;
+  var t = pool[state.hero];
+  document.getElementById("heroArt").style.background = grad(t) + ", var(--bg)";
+  document.getElementById("heroBadge").innerHTML = "<b>S</b> " + (t.k==="series" ? "Series" : "Film") + " · Featured";
+  document.getElementById("heroTitle").textContent = t.t;
+  document.getElementById("heroMeta").innerHTML = '<span class="match">' + t.m + '% match</span><span>' + t.y + '</span><span class="pill">' + t.r + '</span><span>' + t.len + '</span><span>' + esc(t.g.join(" · ")) + '</span>';
+  document.getElementById("heroDesc").textContent = t.d;
+  document.getElementById("heroPlay").onclick = function(){ play(t.id); };
+  document.getElementById("heroInfo").onclick = function(){ openModal(t.id); };
+  var hl = document.getElementById("heroList");
+  hl.textContent = inList(t.id) ? "✓ In My List" : "+ My List";
+  hl.onclick = function(){ toggleList(t.id); };
+  var dots = document.getElementById("dots"); dots.innerHTML = "";
+  pool.forEach(function(_, i){
+    var b = document.createElement("button"); b.setAttribute("aria-label","Show featured title " + (i+1));
+    b.setAttribute("aria-current", String(i===state.hero));
+    b.onclick = function(){ state.hero = i; renderHero(); restartTimer(); };
+    dots.appendChild(b);
+  });
+  hero._pool = pool.length;
+}
+function restartTimer(){
+  clearInterval(heroTimer);
+  heroTimer = setInterval(function(){
+    var hero = document.getElementById("hero");
+    if (hero.hidden || document.querySelector(".overlay, .player")) return;
+    state.hero++; renderHero();
+  }, 8000);
+}
+
+/* Cards and rows */
+function card(t){
+  var b = el("button","card");
+  b.setAttribute("aria-label", t.t + ", " + (t.k==="series" ? "series" : "film"));
+  b.innerHTML = '<div class="poster" style="background:' + grad(t) + '"><strong>' + esc(t.t) + '</strong><small>' + t.m + '% match · ' + t.y + '</small></div>' + (inList(t.id) ? '<span class="listmark" aria-hidden="true">✓</span>' : '');
+  b.onclick = function(){ openModal(t.id); };
+  return b;
+}
+function row(title, items){
+  if (!items.length) return null;
+  var r = el("section","row"); r.appendChild(el("h2",null,esc(title)));
+  var wrap = el("div","row-wrap"); var sc = el("div","scroller");
+  items.forEach(function(t){ sc.appendChild(card(t)); });
+  var l = el("button","arrow l","‹"), rr = el("button","arrow r","›");
+  l.setAttribute("aria-label","Scroll left"); rr.setAttribute("aria-label","Scroll right");
+  l.onclick = function(){ sc.scrollBy({left: -sc.clientWidth * .85, behavior:"smooth"}); };
+  rr.onclick = function(){ sc.scrollBy({left: sc.clientWidth * .85, behavior:"smooth"}); };
+  wrap.appendChild(l); wrap.appendChild(sc); wrap.appendChild(rr); r.appendChild(wrap);
+  return r;
+}
+function gridView(title, items, emptyMsg){
+  var frag = document.createDocumentFragment();
+  frag.appendChild(el("h2","grid-title",esc(title)));
+  if (!items.length) { frag.appendChild(el("div","empty",esc(emptyMsg))); return frag; }
+  var g = el("div","grid"); items.forEach(function(t){ g.appendChild(card(t)); }); frag.appendChild(g); return frag;
+}
+function shuffleBy(arr, seed){ return arr.slice().sort(function(a,b){ return ((a.id*seed)%7) - ((b.id*seed)%7) || a.id - b.id; }); }
+function renderMain(){
+  var main = document.getElementById("main"); main.innerHTML = "";
+  var q = state.query.trim().toLowerCase();
+  if (q) {
+    var res = TITLES.filter(function(t){ return (t.t + " " + t.g.join(" ") + " " + t.k + " " + t.y).toLowerCase().indexOf(q) > -1; });
+    main.appendChild(gridView('Results for "' + state.query.trim() + '"', res, "No titles match that search. Try a genre such as Comedy or Documentary."));
+    return;
+  }
+  if (state.tab === "list") {
+    main.appendChild(gridView("My List", state.list.map(function(id){ return byId[id]; }), "Your list is empty. Open any title and choose My List to save it here."));
+    return;
+  }
+  var base = TITLES.filter(function(t){ return state.tab==="home" || t.k===state.tab; });
+  var rows = [];
+  if (state.list.length && state.tab==="home") rows.push(["My List", state.list.map(function(id){ return byId[id]; })]);
+  rows.push(["Trending now", shuffleBy(base,3).slice(0,12)]);
+  rows.push(["Top picks for you", base.slice().sort(function(a,b){ return b.m - a.m; }).slice(0,10)]);
+  ["Sci-Fi & Fantasy","Crime & Thrillers","Drama","Comedy","Documentary","Family","Action"].forEach(function(g){
+    rows.push([g, base.filter(function(t){ return t.g.indexOf(g) > -1; })]);
+  });
+  rows.push(["New in 2026", base.filter(function(t){ return t.y === 2026; })]);
+  rows.forEach(function(p){ var r = row(p[0], p[1]); if (r) main.appendChild(r); });
+}
+
+/* Modal */
+var lastFocus;
+function closeModal(){ var o = document.querySelector(".overlay"); if (o) o.remove(); if (lastFocus) try { lastFocus.focus(); } catch(e){} }
+function openModal(id){
+  var t = byId[id]; lastFocus = document.activeElement; closeModal();
+  var o = el("div","overlay"); o.setAttribute("role","dialog"); o.setAttribute("aria-modal","true"); o.setAttribute("aria-label", t.t);
+  var similar = TITLES.filter(function(x){ return x.id!==t.id && x.g.some(function(g){ return t.g.indexOf(g) > -1; }); }).slice(0,6);
+  o.innerHTML =
+    '<div class="modal"><button class="close" aria-label="Close">✕</button>' +
+    '<div class="m-art" style="background:' + grad(t) + '"><h3>' + esc(t.t) + '</h3></div>' +
+    '<div class="m-body"><div style="display:grid;gap:12px">' +
+    '<div class="meta"><span class="match">' + t.m + '% match</span><span>' + t.y + '</span><span class="pill">' + t.r + '</span><span>' + t.len + '</span></div>' +
+    '<p style="margin:0">' + esc(t.d) + '</p></div>' +
+    '<div class="side"><div><span>Genres: </span><b>' + esc(t.g.join(", ")) + '</b></div><div><span>Format: </span><b>' + (t.k==="series" ? "Series" : "Film") + '</b></div></div>' +
+    '<div class="m-actions"><button class="btn primary" id="mPlay">▶ Play</button><button class="btn ghost" id="mList">' + (inList(t.id) ? "✓ In My List" : "+ My List") + '</button></div>' +
+    '<div class="more" style="grid-column:1/-1"><h4>More like this</h4><div class="grid" id="sim" style="padding:0"></div></div></div></div>';
+  document.body.appendChild(o);
+  var sim = o.querySelector("#sim"); similar.forEach(function(s){ var c = card(s); c.onclick = function(){ openModal(s.id); }; sim.appendChild(c); });
+  o.querySelector(".close").onclick = closeModal;
+  o.addEventListener("click", function(e){ if (e.target === o) closeModal(); });
+  o.querySelector("#mPlay").onclick = function(){ closeModal(); play(t.id); };
+  o.querySelector("#mList").onclick = function(){ toggleList(t.id); openModal(t.id); };
+  o.querySelector(".close").focus();
+}
+
+/* Player (simulated) */
+function fmt(s){ s = Math.floor(s); var m = Math.floor(s/60), r = s%60; return m + ":" + (r<10?"0":"") + r; }
+function play(id){
+  var t = byId[id]; var total = 180, pos = 0, playing = true, tick;
+  var p = el("div","player"); p.setAttribute("role","dialog"); p.setAttribute("aria-label","Now playing " + t.t);
+  p.innerHTML =
+    '<div class="screen"><div class="art" style="background:' + grad(t) + '"></div><button class="btn ghost top" id="back">← Back</button>' +
+    '<div class="title">' + esc(t.t) + '</div></div>' +
+    '<div class="controls"><div class="bar" id="bar" role="slider" aria-label="Seek" tabindex="0"><i id="fill"></i></div>' +
+    '<div class="ctl"><button id="pp" aria-label="Play or pause">❚❚</button><button id="rw" aria-label="Back 10 seconds">⟲ 10</button><button id="fw" aria-label="Forward 10 seconds">10 ⟳</button><span id="tm">0:00 / ' + fmt(total) + '</span><span class="grow"></span><span style="color:var(--muted);font-size:13px">Demo player</span></div></div>';
+  document.body.appendChild(p);
+  var fill = p.querySelector("#fill"), tm = p.querySelector("#tm"), pp = p.querySelector("#pp"), bar = p.querySelector("#bar");
+  function draw(){ fill.style.width = (pos/total*100) + "%"; tm.textContent = fmt(pos) + " / " + fmt(total); bar.setAttribute("aria-valuenow", Math.round(pos/total*100)); pp.textContent = playing ? "❚❚" : "▶"; }
+  function stop(){ clearInterval(tick); document.removeEventListener("keydown", key); p.remove(); }
+  tick = setInterval(function(){ if (playing) { pos = Math.min(total, pos + 1); if (pos >= total) playing = false; draw(); } }, 1000);
+  function key(e){ if (e.key === "Escape") stop(); else if (e.key === " ") { e.preventDefault(); playing = !playing; draw(); } }
+  document.addEventListener("keydown", key);
+  p.querySelector("#back").onclick = stop;
+  pp.onclick = function(){ playing = !playing; if (pos >= total) pos = 0; draw(); };
+  p.querySelector("#rw").onclick = function(){ pos = Math.max(0, pos - 10); draw(); };
+  p.querySelector("#fw").onclick = function(){ pos = Math.min(total, pos + 10); draw(); };
+  bar.onclick = function(e){ var r = bar.getBoundingClientRect(); pos = Math.round((e.clientX - r.left) / r.width * total); draw(); };
+  draw(); p.querySelector("#back").focus();
+}
+
+document.addEventListener("keydown", function(e){ if (e.key === "Escape" && !document.querySelector(".player")) closeModal(); });
+document.getElementById("q").addEventListener("input", function(e){ state.query = e.target.value; renderTabs(); renderMain(); renderHero(); });
+renderTabs(); renderMain(); renderHero(); restartTimer();
+</script>
+
+</body>
+</html>
